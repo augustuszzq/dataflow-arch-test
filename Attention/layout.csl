@@ -1,0 +1,103 @@
+
+// Color/ task ID map
+//
+//  ID var              ID var              ID var                ID var
+//   0 c2d_x_color_0     9 c2d_x_entrypt_1  18 REDUCE             27 reserved (memcpy)
+//   1 c2d_x_color_1    10 c2d_y_entrypt_0  19 REDUCE             28 reserved (memcpy)
+//   2 c2d_y_color_0    11 c2d_y_entrypt_1  20                    29 reserved
+//   3 c2d_y_color_1    12 EXIT             21 reserved (memcpy)  30 reserved (memcpy)
+//   4 allReduce        13 compute_task_id  22 reserved (memcpy)  31 reserved
+//   5                  14 x_task_id        23 reserved (memcpy)  32
+//   6                  15 y_task_id        24                    33
+//   7                  16 REDUCE           25                    34
+//   8 c2d_x_entrypt_0  17 REDUCE           26                    35
+
+
+//Colors
+param c0 = @get_color(0);
+param c1 = @get_color(1);
+param c2 = @get_color(2);
+param c3 = @get_color(3);
+param c4 = @get_color(4);
+
+//Entrypoints for allreduce
+param allreduce_EN1: local_task_id = @get_local_task_id(16);
+param allreduce_EN2: local_task_id = @get_local_task_id(17);
+param allreduce_EN3: local_task_id = @get_local_task_id(18);
+param allreduce_EN4: local_task_id = @get_local_task_id(19);
+
+//Entrypoints for GEMM
+param EN1: local_task_id = @get_local_task_id(8);
+param EN2: local_task_id = @get_local_task_id(9);
+param EN3: local_task_id = @get_local_task_id(10);
+param EN4: local_task_id = @get_local_task_id(11);
+param EN5: local_task_id = @get_local_task_id(12);
+param EN6: local_task_id = @get_local_task_id(13);
+param EN7: local_task_id = @get_local_task_id(14);
+param EN8: local_task_id = @get_local_task_id(15);
+
+param P  : u16;
+param Mt : u16;
+param Nt : u16;
+param width : i16;
+param height : i16;
+
+
+const memcpy = @import_module( "<memcpy/get_params>", .{
+    .width = width,
+    .height = height,
+    });
+//const gemm = @import_module("gemm/layout.csl",.{
+//    .width = width,
+//    .height = height,
+//    .Mt = Mt,
+//    .Nt = Nt,
+//});
+const c2d = @import_module("<collectives_2d/params>");
+
+//const reduce = @import_module( "allreduce/layout.csl", .{
+//    .colors = [1]color{c4},
+//    .entrypoints = [4]local_task_id{allreduce_EN1,allreduce_EN2,allreduce_EN3,allreduce_EN4},
+//    .width = width,
+//    .height = height,
+//    });
+layout{
+
+
+    // step 1: configure the rectangle which does not include halo
+    @set_rectangle( width, height );
+
+    // step 2: compile csl code for a set of PEx.y and generate out_x_y.elf
+    //   format: @set_tile_code(x, y, code.csl, param_binding);
+
+    var py: i16 = 0;
+    while(py < height) : (py +=1) {
+        var px: i16 = 0;
+        while(px < width) : (px +=1) {
+            const c2dParams = c2d.get_params(px, py, .{
+                .x_colors      = .{ @get_color(0),         @get_color(1) },
+                .x_entrypoints = .{ @get_local_task_id(8), @get_local_task_id(9) },
+                .y_colors      = .{ @get_color(2),         @get_color(3) },
+                .y_entrypoints = .{ @get_local_task_id(10), @get_local_task_id(11) },
+            });
+            //const gemmParams = gemm.get_params(px,py);
+            const memcpyParams = memcpy.get_params(py);
+            var params: comptime_struct = .{
+                .memcpyParams = memcpyParams,
+                //.gemmParams = gemmParams,
+                .c2dParams = c2dParams,
+                .Mt = Mt,
+                .Nt = Nt,
+            };
+
+            @set_tile_code(px, py, "kernel.csl", params);
+        }
+    }
+    //@export_name("f_gemm", fn()void);
+    //@export_name("softmax", fn()void);
+    @export_name("Q_tile", [*]f32, true);
+    @export_name("K_tile", [*]f32, true);
+    @export_name("V_tile", [*]f32, true);
+
+
+} // end of layout

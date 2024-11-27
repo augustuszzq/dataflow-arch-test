@@ -1,0 +1,185 @@
+// This program implements the SUMMA matrix multiplication algorithm and is
+// written as an example to show how to use the `collectives_2d` library.
+
+// We perform GEMM in `P` many steps on a grid of `P x P` processors.
+// At each step `i`, PEs in the `i`th column broadcast their home tiles of `A`
+// to other PEs in their row, and PEs in the `i`th row broadcast their home
+// tiles of `B` to other PEs in their column. Once both broadcasts are complete
+// as determined by `x_done()` and `y_done()` both being activated,
+// each PE computes `C_tile += Ap * Bp` where `Ap` and `Bp` are pointers to
+// either the PE's home tile or the tile it received through broadcasts.
+
+param memcpyParams:comptime_struct;
+param c2dParams:comptime_struct;
+
+// Matrix size params
+param Mt: u16;
+
+param Nt: u16;
+
+
+// Task IDs
+const EXIT:            local_task_id = @get_local_task_id(12);
+const compute_task_id: local_task_id = @get_local_task_id(13);
+const x_task_id:       local_task_id = @get_local_task_id(14);
+const y_task_id:       local_task_id = @get_local_task_id(15);
+const dummyA_f32 = @zeros([1]f32);
+const dummyB_f32 = @zeros([1]f32);
+const dummyC_f32 = @zeros([1]f32);
+
+const mpi_x = @import_module("<collectives_2d/pe>", .{
+    .dim_params = c2dParams.x,
+    .queues = [2]u16{2,4},
+    .dest_dsr_ids = [1]u16{1},
+    .src0_dsr_ids = [1]u16{1},
+    .src1_dsr_ids = [1]u16{1}
+    });
+const mpi_y = @import_module("<collectives_2d/pe>", .{
+    .dim_params = c2dParams.y,
+    .queues = [2]u16{3,5},
+    .dest_dsr_ids = [1]u16{2},
+    .src0_dsr_ids = [1]u16{2},
+    .src1_dsr_ids = [1]u16{2}
+    });
+
+// On WSE-2, memcpy uses input/output queue 0
+// On WSE-3, memcpy uses input/output queues 0 and 1
+const sys_mod = @import_module("<memcpy/memcpy>", memcpyParams);
+
+const P = @get_rectangle().width;
+
+// This PE's home tile of A, B, C
+// `A_tile` and `B_tile` will be populated with initial values by run.py
+// These arrays are stored in a column major format.
+
+
+var ptr_A : [*]f32;
+var ptr_B : [*]f32;
+var ptr_C : [*]f32;
+
+// Temporary buffers for storing in-flight tiles of A and B
+var ptr_A_buf : [*]f32;
+var ptr_B_buf : [*]f32;
+
+var px: u16;
+var py: u16;
+
+var A_dsd  = @get_dsd(mem1d_dsd, .{ .tensor_access = |i|{1} -> dummyA_f32[i] });
+var B_dsd  = @get_dsd(mem1d_dsd, .{ .tensor_access = |i|{1} -> dummyB_f32[i] });
+var C_dsd  = @get_dsd(mem1d_dsd, .{ .tensor_access = |i|{1} -> dummyC_f32[i] });
+
+var ty: bool;
+
+task x_done() void {
+  @activate(compute_task_id);
+}
+
+task y_done() void {
+  @unblock(compute_task_id);
+}
+
+var step: u16 = 0;
+fn main() void {
+  @assert(step < P);
+  // The first time through we need to initialize our state
+  if (step == 0) {
+    mpi_x.init();
+    mpi_y.init();
+    px = mpi_x.pe_id;
+    py = mpi_y.pe_id;
+  }
+
+  // Communicate along both rows and columns
+  const Ap = if (px == step) ptr_A else ptr_A_buf;
+  const Bp = if (py == step) ptr_B else ptr_B_buf;
+  if (ty){
+    mpi_x.broadcast(step, @ptrcast([*]u32, Ap), Mt * Nt, x_task_id);
+    mpi_y.broadcast(step, @ptrcast([*]u32, Bp), Nt * Mt, y_task_id);
+  }else{
+    mpi_x.broadcast(step, @ptrcast([*]u32, Ap), Mt * Mt, x_task_id);
+    mpi_y.broadcast(step, @ptrcast([*]u32, Bp), Mt * Nt, y_task_id);
+  }
+  
+}
+
+task compute() void {
+ const Ap = if (px == step) ptr_A else ptr_A_buf;
+ const Bp = if (py == step) ptr_B else ptr_B_buf;
+ if(ty){
+  for (@range(i16, Nt)) |k| {
+    @set_dsd_base_addr(C_dsd,ptr_C);
+    @set_dsd_length(C_dsd,Mt*Mt);
+
+    for (@range(i16, Mt)) |j| {
+      const b = Bp.*[j*Nt + k];
+      @fmacs(C_dsd, C_dsd, A_dsd, b);
+      C_dsd = @increment_dsd_offset(C_dsd, Mt, f32);
+    }
+    A_dsd = @increment_dsd_offset(A_dsd, Mt, f32);
+  }
+ }else{
+  
+  for (@range(i16, Mt)) |k| {
+    @set_dsd_base_addr(C_dsd,ptr_C);
+    @set_dsd_length(C_dsd,Mt*Nt);
+
+    for (@range(i16, Nt)) |j| {
+      const b = Bp.*[j*Mt + k];
+      @fmacs(C_dsd, C_dsd, A_dsd, b);
+      C_dsd = @increment_dsd_offset(C_dsd, Mt, f32);
+    }
+    A_dsd = @increment_dsd_offset(A_dsd, Mt, f32);
+  }
+ }
+ 
+  
+
+  step += 1;
+  @block(compute_task_id);
+
+  if (step != P) {
+    main();
+  } else {
+    @activate(EXIT);
+  }
+}
+
+task f_exit() void {
+  // the user must unblock cmd color for every PE
+  sys_mod.unblock_cmd_stream();
+}
+fn gemm(A:[*]f32, B:[*]f32, C:[*]f32, op: bool) void {
+  type = op;
+  ptr_A = A;
+  ptr_B = B;
+  ptr_C = C;
+  A_buf = @zeros([Mt*Kt]f32);
+  B_buf = @zeros([Kt*Nt]f32);
+  ptr_A_buf = &A_buf;
+  ptr_B_buf = &B_buf;
+  A_dsd = @set_dsd_base_addr(A_dsd, ptr_A);
+  B_dsd = @set_dsd_base_addr(B_dsd, ptr_B);
+  C_dsd = @set_dsd_base_addr(C_dsd,ptr_C);
+  if(type == 0){
+
+    @set_dsd_length(A_dsd,Mt*Nt);
+    @set_dsd_length(B_dsd,Mt*Nt);
+    @set_dsd_length(C_dsd,Mt*Mt);
+  }else{
+    @set_dsd_length(A_dsd,Mt*Mt);
+    @set_dsd_length(B_dsd,Mt*Nt);
+    @set_dsd_length(C_dsd,Mt*Nt);
+  }
+
+
+  main();
+
+}
+comptime {
+  @bind_local_task(f_exit, EXIT);
+  @bind_local_task(compute, compute_task_id);
+  @bind_local_task(x_done, x_task_id);
+  @bind_local_task(y_done, y_task_id);
+  @block(compute_task_id);
+
+}
