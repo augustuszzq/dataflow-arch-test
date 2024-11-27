@@ -1,0 +1,38 @@
+train_input:
+    data_dir: "/software/cerebras/dataset/fc_mnist/data/mnist/train"
+    # The effective batch size, which is evenly divided across "num_csx" systems used for the run
+    batch_size: 64
+    drop_last_batch: True
+    to_float16: True
+    shuffle: True
+
+eval_input:
+    data_dir: "/software/cerebras/dataset/fc_mnist/data/mnist/train"
+    # The effective batch size, which is evenly divided across "num_csx" systems used for the run
+    batch_size: 64
+    drop_last_batch: True
+    shuffle: False
+
+model:
+    name: "fc_mnist"
+    mixed_precision: True
+    depth: 3
+    hidden_size: 128
+    dropout: 0.2
+    activation_fn: "relu"
+    to_float16: False
+
+optimizer:
+    optimizer_type: "Adam"  
+    learning_rate: 0.001
+    momentum: 0.0
+    loss_scaling_factor: 1.0
+
+
+runconfig:
+    max_steps: 93800  
+    log_steps: 100  
+    checkpoint_steps: 5000  
+    seed: 1
+    model_dir: "./model_dir"
+
