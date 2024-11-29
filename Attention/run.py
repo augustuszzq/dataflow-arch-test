@@ -40,7 +40,7 @@ runner = SdkRuntime(args.name, cmaddr=args.cmaddr)
 
 sym_Q = runner.get_id("Q_tile")
 sym_K = runner.get_id("K_tile")
-#sym_V = runner.get_id("V_tile")
+sym_QK = runner.get_id("QK_tile")
 
 runner.load()
 runner.run()
@@ -88,10 +88,10 @@ B3 = B2.reshape(h, w, Nt*Mt)
 runner.memcpy_h2d(sym_K, B3.ravel(), 0, 0, w, h, Mt*Nt, \
     streaming=False, data_type=memcpy_dtype, order=MemcpyOrder.ROW_MAJOR, nonblock=True)
 
-#runner.launch("main", nonblock=False)
+runner.launch("f_QK", nonblock=False)
 
-#C3_1d_u32 = np.zeros(h*w*Mt*Nt, np.uint32)
-#runner.memcpy_d2h(C3_1d_u32, sym_C, 0, 0, w, h, Mt*Nt, \
+#C3_1d_u32 = np.zeros(h*w*Mt*Mt, np.uint32)
+#runner.memcpy_d2h(C3_1d_u32, sym_QK, 0, 0, w, h, Mt*Mt, \
 #    streaming=False, data_type=memcpy_dtype, order=MemcpyOrder.ROW_MAJOR, nonblock=False)
 # C3 is h-by-w-l or
 # C3 is of the form (h, w, Nt, Mt) where local tensor Mt-by-Nt is column-major

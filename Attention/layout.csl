@@ -95,9 +95,10 @@ layout{
     }
     //@export_name("f_gemm", fn()void);
     //@export_name("softmax", fn()void);
-    @export_name("Q_tile", [*]f32, true);
-    @export_name("K_tile", [*]f32, true);
-    @export_name("V_tile", [*]f32, true);
+    @export_name("Q_tile", *[Mt*Nt]f32, true);
+    @export_name("K_tile", *[Mt*Nt]f32, true);
+    @export_name("QK_tile",*[Mt*Mt]f32,true);
+    @export_name("f_QK", fn()void);
 
 
 } // end of layout
