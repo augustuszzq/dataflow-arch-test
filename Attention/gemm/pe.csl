@@ -19,8 +19,7 @@ param Nt: u16;
 
 param Q_tile:*[Mt*Nt]f32;
 param K_tile:*[Mt*Nt]f32;
-param QK_tile:*[Mt*Mt]f32;
-
+var QK_tile = @zeros([Mt*Mt]f32);
 // Task IDs
 const EXIT:            local_task_id = @get_local_task_id(12);
 const compute_task_id: local_task_id = @get_local_task_id(13);
@@ -119,7 +118,10 @@ task compute() void {
     @activate(EXIT);
   }
 }
-
+fn qkmm() *[Mt*Mt]f32 {
+  main();
+  return &QK_tile;
+}
 task f_exit() void {
   // the user must unblock cmd color for every PE
   sys_mod.unblock_cmd_stream();
@@ -130,5 +132,4 @@ comptime {
   @bind_local_task(x_done, x_task_id);
   @bind_local_task(y_done, y_task_id);
   @block(compute_task_id);
-
 }

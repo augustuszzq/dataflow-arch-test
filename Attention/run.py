@@ -90,9 +90,9 @@ runner.memcpy_h2d(sym_K, B3.ravel(), 0, 0, w, h, Mt*Nt, \
 
 runner.launch("f_QK", nonblock=False)
 
-#C3_1d_u32 = np.zeros(h*w*Mt*Mt, np.uint32)
-#runner.memcpy_d2h(C3_1d_u32, sym_QK, 0, 0, w, h, Mt*Mt, \
-#    streaming=False, data_type=memcpy_dtype, order=MemcpyOrder.ROW_MAJOR, nonblock=False)
+C3_1d_u32 = np.zeros(h*w*Mt*Mt, np.uint32)
+runner.memcpy_d2h(C3_1d_u32, sym_QK, 0, 0, w, h, Mt*Mt, \
+    streaming=False, data_type=memcpy_dtype, order=MemcpyOrder.ROW_MAJOR, nonblock=False)
 # C3 is h-by-w-l or
 # C3 is of the form (h, w, Nt, Mt) where local tensor Mt-by-Nt is column-major
 #C3 = C3_1d_u32.reshape((h, w, Nt, Mt))
