@@ -97,7 +97,7 @@ layout{
     //@export_name("softmax", fn()void);
     @export_name("Q_tile", *[Mt*Nt]f32, true);
     @export_name("K_tile", *[Mt*Nt]f32, true);
-    @export_name("QK_tile",*[Mt*Mt]f32,true);
+    @export_name("QK_tile",*[Mt*Mt]f32, true);
     @export_name("f_QK", fn()void);
 
 

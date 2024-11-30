@@ -16,7 +16,7 @@ param Nt;
 
 var Q_tile = @zeros([Mt*Nt]f32);
 var K_tile = @zeros([Nt*Mt]f32);
-var QK_tile:*[Mt*Mt]f32;
+var QK_tile = @zeros([Mt*Mt]f32);
 
 var ptr_Q = &Q_tile;
 var ptr_K = &K_tile;
@@ -40,8 +40,7 @@ const gemm_mod = @import_module("gemm/pe.csl",.{
 
 
 fn f_QK() void {
-
-    QK_tile = gemm_mod.qkmm();
+    gemm_mod.qkmm(ptr_QK);
 }
 
 
@@ -50,7 +49,7 @@ comptime{
     //@export_symbol(f_gemm);
     @export_symbol(ptr_Q,"Q_tile");
     @export_symbol(ptr_K,"K_tile");
-    @export_symbol(QK_tile,"QK_tile");
+    @export_symbol(ptr_QK,"QK_tile");
 }
 comptime{
     @export_symbol(f_QK);

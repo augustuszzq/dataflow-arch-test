@@ -253,7 +253,24 @@ fn allreduce( n: i16, in_tensor: [*]f32, op: TYPE_BINARY_OP ) void {
 // Then allreduce(ADD, x) updates x[0] = (|x|_2/alpha)^2
 var nrm2_x_copy: f32;
 
+fn softmax(n: i16 , in_tensor:[*]f32) void{
+    x = in_tensor;
+    functor = TYPE_BINARY_OP.MAX;
+    @assert(n > 0);
+    wvlts_per_pe = @bitcast(u16, n);
 
+    state_seq[0] = STATE_SCALE_FIRST;//implement the division first
+    state_seq[1] = STATE_ROW_REDUCE_MAX;
+    state_seq[2] = STATE_PLUS;
+    state_seq[3] = STATE_ROW_REDUCE_ADD;
+    state_seq[4] = STATE_SCALE_LAST;
+
+    state_idx = 0;
+    cur_state = state_seq[0];
+    @activate(C_STATE_ENTRY);
+
+
+}
 // The portal function rnm2
 //
 // It only computes nrm2(x[0]) because
