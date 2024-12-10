@@ -1,40 +1,61 @@
 #!/bin/bash
-
-# Log File Path
-LOG_FILE=~/attention_layer_test.log
-
-# Output error to Log
+# Log File Path (keeping your original path)
+LOG_FILE=~/mixed_precision/output/test_attention.log
+# Redirect output to log file
 exec > >(tee -i $LOG_FILE) 2>&1
+echo "Starting Test $(date)"
+# Clean up existing virtual environment if it exists
+# echo "Cleaning up any existing virtual environment..."
+# if [ -d "~/mixed_precision/scripts/new_llm/venv_cerebras_pt" ]; then
+#     rm -rf ~/mixed_precision/scripts/new_llm/venv_cerebras_pt
+# fi
 
-# Step 1: Clean up existing virtual environment if it exists
-echo "Cleaning up any existing virtual environment..."
-if [ -d "~/attention_layer_env" ]; then
-  rm -rf ~/attention_layer_env
-fi
+# Set up Python virtual environment (keeping your original path)
+echo "Setting up Python virtual environment..."
+/opt/python3.8/bin/python3.8 -m venv ~/venv_cerebras_pt
+source ~/venv_cerebras_pt/bin/activate
 
-# Step 2: Set up a new virtual environment
-echo "Setting up a virtual environment..."
-/opt/python3.8/bin/python3.8 -m venv ~/attention_layer_env
-source ~/attention_layer_env/bin/activate
+# Install required packages
+# echo "Installing required packages..."
+# pip install --upgrade pip
 
-# Step 3: Upgrade pip and install required packages
-pip install --upgrade pip
-pip install cerebras_pytorch==2.3.1
+# Clone or update ModelZoo repository (keeping your original path)
+# mkdir -p ~/mixed_precision/R_2.3.0
+# cd ~/mixed_precision/R_2.3.0
+# if [ ! -d "modelzoo" ]; then
+#     echo "Cloning ModelZoo repository..."
+#     git clone https://github.com/Cerebras/modelzoo.git
+#     cd modelzoo
+#     git checkout Release_2.3.0
+# else
+#     echo "ModelZoo repository exists, updating..."
+#     cd modelzoo
+#     git pull
+#     git checkout Release_2.3.0
+# fi
 
-pip install --verbose -r /home/kevienzzq/mixed_precision/R_2.3.1/modelzoo/requirements.txt
-#pip install jsonschema
-#pip install packaging
+# # Install ModelZoo requirements
+# echo "Installing ModelZoo requirements..."
+# pip install -r ~/mixed_precision/R_2.3.0/modelzoo/requirements.txt 
+
+# Run training
+echo "Starting test..."
+cd /home/kevienzzq/dataflow-arch-test/scripts/new_llm
+export PYTHONPATH=/home/$(whoami)/mixed_precision/R_2.3.0/modelzoo/src:$PYTHONPATH
+
+python test_attention.py CSX \
+    --job_labels name=test \
+    --num_csx=1 \
+    --mode train \
+    --model_dir $MODEL_DIR \
+    --mount_dirs /home/ /software \
+    --python_paths /home/$(whoami)/mixed_precision/R_2.3.0/modelzoo/src \
+    --compile_dir $(whoami) |& tee -a $LOG_FILE
 
 
-export PYTHONPATH=/home/kevienzzq/mixed_precision/R_2.3.1/modelzoo/src:$PYTHONPATH
-
-# Step 4: Run the attention layer throughput test
-echo "Running the attention layer throughput test..."
-python /home/kevienzzq/mixed_precision/scripts/new_llm/test_attention.py  |& tee -a $LOG_FILE
-
-# Step 5: Clean up the virtual environment
-echo "Cleaning up the virtual environment..."
+# Cleanup
+echo "Cleaning up..."
 deactivate
-rm -rf ~/attention_layer_env
+# rm -rf ~/mixed_precision/scripts/new_llm/venv_cerebras_pt
 
-echo "Script execution completed."
+echo "Script execution completed at $(date). Virtual environment removed."

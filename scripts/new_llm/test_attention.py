@@ -1,27 +1,18 @@
 import torch
 import time
 from cerebras.modelzoo.layers.AttentionLayer import MultiheadAttention
-from cerebras.pytorch.utils.csdevice import DeviceType, get_device
 
 # Function to measure throughput
-def measure_throughput(embed_dim, num_heads, seq_length, batch_size, num_trials=10, device_type="GPU"):
-    # Initialize device based on type
-    if device_type.upper() == "CSX":
-        device = get_device(DeviceType.CSX)
-    elif device_type.upper() == "GPU":
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        device = torch.device("cpu")
+def measure_throughput(embed_dim, num_heads, seq_length, batch_size, num_trials=10):
+    # Initialize MultiheadAttention layer (default on CPU)
+    attention_layer = MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads)
 
-    # Initialize MultiheadAttention layer
-    attention_layer = MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads, device=device)
+    # Generate random input tensors on CPU
+    q = torch.randn(batch_size, seq_length, embed_dim)
+    k = torch.randn(batch_size, seq_length, embed_dim)
+    v = torch.randn(batch_size, seq_length, embed_dim)
 
-    # Generate random input tensors
-    q = torch.randn(batch_size, seq_length, embed_dim).to(device)
-    k = torch.randn(batch_size, seq_length, embed_dim).to(device)
-    v = torch.randn(batch_size, seq_length, embed_dim).to(device)
-
-    # Warm-up runs
+    # Warm-up runs (not included in timing)
     for _ in range(5):
         _ = attention_layer(q, k, v)
 
@@ -37,19 +28,14 @@ def measure_throughput(embed_dim, num_heads, seq_length, batch_size, num_trials=
     return avg_time_per_run, throughput
 
 # Test configurations
-embed_dim = 512
-seq_length = 128
+embed_dim = 768
+seq_length = 512
 batch_size = 32
 
 # Test for different numbers of heads
-num_heads_list = [1, 4, 8, 16]
+num_heads_list = [1, 4, 12, 24]
 
-print("Testing throughput for different numbers of heads on CSX:\n")
+print("Testing throughput for different numbers of heads on CPU:\n")
 for num_heads in num_heads_list:
-    avg_time, throughput = measure_throughput(embed_dim, num_heads, seq_length, batch_size, device_type="CSX")
-    print(f"Num Heads: {num_heads}, Avg Time: {avg_time:.6f} sec, Throughput: {throughput:.2f} tokens/sec")
-
-print("\nTesting throughput for different numbers of heads on GPU:\n")
-for num_heads in num_heads_list:
-    avg_time, throughput = measure_throughput(embed_dim, num_heads, seq_length, batch_size, device_type="GPU")
-    print(f"Num Heads: {num_heads}, Avg Time: {avg_time:.6f} sec, Throughput: {throughput:.2f} tokens/sec")
+    avg_time, throughput = measure_throughput(embed_dim, num_heads, seq_length, batch_size)
+    print(f"Num Heads: {num_heads}, Avg Time: {avg_time:.6f} sec/run, Throughput: {throughput:.2f} tokens/sec")

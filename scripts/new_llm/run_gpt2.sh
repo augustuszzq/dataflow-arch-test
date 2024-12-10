@@ -12,12 +12,12 @@ echo "Starting GPT-2 training script at $(date)"
 
 # Set up Python virtual environment (keeping your original path)
 echo "Setting up Python virtual environment..."
-/opt/python3.8/bin/python3.8 -m venv ~/mixed_precision/scripts/new_llm/venv_cerebras_pt_R2.3.0
-source ~/mixed_precision/scripts/new_llm/venv_cerebras_pt_R2.3.0/bin/activate
+/opt/python3.8/bin/python3.8 -m venv ~/venv_cerebras_pt
+source ~/venv_cerebras_pt_R/bin/activate
 
 # Install required packages
-echo "Installing required packages..."
-pip install --upgrade pip
+# echo "Installing required packages..."
+# pip install --upgrade pip
 
 # Clone or update ModelZoo repository (keeping your original path)
 mkdir -p ~/mixed_precision/R_2.3.0
@@ -34,9 +34,9 @@ else
     git checkout Release_2.3.0
 fi
 
-# Install ModelZoo requirements
-echo "Installing ModelZoo requirements..."
-pip install -r ~/mixed_precision/R_2.3.0/modelzoo/requirements.txt 
+# # Install ModelZoo requirements
+# echo "Installing ModelZoo requirements..."
+# pip install -r ~/mixed_precision/R_2.3.0/modelzoo/requirements.txt 
 
 # Set up model directory (keeping your original name)
 export MODEL_DIR=model_dir_gpt2_train_test_cb16
@@ -60,6 +60,6 @@ python run.py CSX \
 # Cleanup
 echo "Cleaning up..."
 deactivate
-rm -rf ~/mixed_precision/scripts/new_llm/venv_cerebras_pt
+# rm -rf ~/mixed_precision/scripts/new_llm/venv_cerebras_pt
 
 echo "Script execution completed at $(date). Virtual environment removed."
