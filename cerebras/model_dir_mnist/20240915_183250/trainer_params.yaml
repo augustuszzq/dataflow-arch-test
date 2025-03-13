@@ -1,0 +1,55 @@
+trainer:
+  init:
+    model_dir: /home/kevienzzq/mixed_precision/output/model_dir_mnist
+    seed: 1
+    backend:
+      backend_type: CSX
+      compile_dir: /kevienzzq
+      cluster_config:
+        num_csx: 1
+        mount_dirs:
+        - /home/kevienzzq/
+        - /software
+        python_paths:
+        - /home/kevienzzq/mixed_precision/scripts/modelzoo/src
+    model:
+      name: fc_mnist
+      mixed_precision: true
+      depth: 3
+      hidden_size: 128
+      dropout: 0.2
+      activation_fn: relu
+      to_float16: false
+      cls: MNISTModel
+    optimizer:
+      Adam:
+        learning_rate: 0.001
+        momentum: 0.0
+    precision:
+      enabled: true
+      loss_scaling_factor: 1.0
+    loop:
+      max_steps: 93800
+    checkpoint:
+      steps: 5000
+    logging:
+      log_steps: 100
+    schedulers:
+    - ConstantLR:
+        learning_rate: 0.001
+  fit:
+    train_dataloader:
+      data_dir: /software/cerebras/dataset/fc_mnist/data/mnist/train
+      batch_size: 64
+      drop_last_batch: true
+      to_float16: true
+      shuffle: true
+    val_dataloader: &id001
+      data_dir: /software/cerebras/dataset/fc_mnist/data/mnist/train
+      batch_size: 64
+      drop_last_batch: true
+      shuffle: false
+  validate:
+    val_dataloader: *id001
+  validate_all:
+    val_dataloaders: *id001

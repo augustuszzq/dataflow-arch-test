@@ -1,0 +1,79 @@
+{
+    "Initialization": [
+        0.5620837,
+        {
+            "wait_for_init": [
+                0.0004315,
+                {}
+            ]
+        }
+    ],
+    "compile": [
+        471.9789203,
+        {
+            "pt_cirh": [
+                0.0001014,
+                {}
+            ],
+            "compile_coord_start": [
+                50.1834804,
+                {}
+            ],
+            "cirh_end": [
+                421.7948312,
+                {}
+            ]
+        }
+    ],
+    "execute_till_recv_loss": [
+        186.4580507,
+        {
+            "execute_prep_details": [
+                110.2813157,
+                {
+                    "job_initializing": [
+                        0.0192635,
+                        {}
+                    ],
+                    "scheduler_wait": [
+                        10.0106863,
+                        {}
+                    ]
+                }
+            ],
+            "execute_init_transfer_setup": [
+                76.1650035,
+                {
+                    "execute_load_request": [
+                        30.0848617,
+                        {}
+                    ],
+                    "execute_run_info": [
+                        2.8149498,
+                        {}
+                    ],
+                    "execute_send_weights": [
+                        2.9191319,
+                        {}
+                    ],
+                    "execute_start_streaming": [
+                        40.2352912,
+                        {}
+                    ]
+                }
+            ],
+            "recv_first_activation": [
+                0.0116853,
+                {}
+            ]
+        }
+    ],
+    "Retrieve and Save weights": [
+        10.9044779,
+        {}
+    ],
+    "execute_shutdown": [
+        28.3362549,
+        {}
+    ]
+}

@@ -1,0 +1,40 @@
+// Color/ task ID map
+//
+//  ID var              ID var              ID var                ID var
+//   0 c2d_x_color_0     9 c2d_x_entrypt_1  18                    27 reserved (memcpy)
+//   1 c2d_x_color_1    10 c2d_y_entrypt_0  19                    28 reserved (memcpy)
+//   2                  11 c2d_y_entrypt_1  20                    29 reserved
+//   3                  12 EXIT             21 reserved (memcpy)  30 reserved (memcpy)
+//   4 c2d_y_color_0    13 compute_task_id  22 reserved (memcpy)  31 reserved
+//   5 c2d_y_color_1    14 x_task_id        23 reserved (memcpy)  32
+//   6                  15 y_task_id        24                    33
+//   7                  16                  25                    34
+//   8 c2d_x_entrypt_0  17                  26                    35
+
+param width : i16 ;   // width of the core
+param height: i16 ;   // height of the core
+
+
+// Program rectangle is P x P
+param P: u16;
+
+// Matrix dimensions on one PE
+param Mt: u16;
+param Nt: u16;
+
+const invariants = .{
+  .width = width,
+  .height = height,
+  .Mt = Mt,
+  .Nt = Nt,
+};
+
+
+
+
+fn get_params(px:i16, py:i16) comptime_struct {
+  return invariants;
+}
+
+
+
