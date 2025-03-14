@@ -347,6 +347,7 @@ def apply_rope_x(x, cos, sin):
     """
     x1 = x[..., ::2]
     x2 = x[..., 1::2]
+
     return torch.cat([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
 
 class MLA(nn.Module):
@@ -423,9 +424,12 @@ class MLA(nn.Module):
         past_length: length of past tokens for proper RoPE indexing
         """
         B, S, D = x.size()
-
+        print("检查")
+        print(compressed_q.dtype)
         # --- Q projection ---
         compressed_q = x @ self.W_dq               # (B, S, q_proj_dim)
+        print("检查")
+        print(compressed_q.dtype)
         compressed_q = self.q_layernorm(compressed_q)
         Q = compressed_q @ self.W_uq                 # (B, S, d_model)
         # Reshape to (B, n_heads, S, dh)
@@ -434,9 +438,10 @@ class MLA(nn.Module):
         Q, Q_for_rope = torch.split(Q, [self.qk_nope_dim, self.qk_rope_dim], dim=-1)
 
         # Apply RoPE to Q's RoPE part
-        cos_q = self.cos_cached[:, :, past_length:past_length+S, :self.qk_rope_dim//2].repeat(1, 1, 1, 2)
-        sin_q = self.sin_cached[:, :, past_length:past_length+S, :self.qk_rope_dim//2].repeat(1, 1, 1, 2)
+        cos_q = self.cos_cached[:, :, past_length:past_length+S, :self.qk_rope_dim//2].repeat(1, 1, 1, 1)
+        sin_q = self.sin_cached[:, :, past_length:past_length+S, :self.qk_rope_dim//2].repeat(1, 1, 1, 1)
         Q_for_rope = apply_rope_x(Q_for_rope, cos_q, sin_q)
+
 
         # --- KV projection ---
         if kv_cache is None:
@@ -462,8 +467,8 @@ class MLA(nn.Module):
 
         # Apply RoPE to K's RoPE part
         K_for_rope = K_for_rope.view(B, -1, 1, self.qk_rope_dim).transpose(1, 2)
-        cos_k = self.cos_cached[:, :, :S_full, :self.qk_rope_dim//2].repeat(1, 1, 1, 2)
-        sin_k = self.sin_cached[:, :, :S_full, :self.qk_rope_dim//2].repeat(1, 1, 1, 2)
+        cos_k = self.cos_cached[:, :, :S_full, :self.qk_rope_dim//2].repeat(1, 1, 1, 1)
+        sin_k = self.sin_cached[:, :, :S_full, :self.qk_rope_dim//2].repeat(1, 1, 1, 1)
         K_for_rope = apply_rope_x(K_for_rope, cos_k, sin_k)
         K_for_rope = K_for_rope.repeat(1, self.n_heads, 1, 1)
 
@@ -479,10 +484,12 @@ class MLA(nn.Module):
         sq_mask = mask == 1
 
         # Compute attention using scaled dot-product attention
-        attn_output = torch.nn.functional.scaled_dot_product_attention(
-            q_heads, k_heads, v_heads,
-            attn_mask=sq_mask
-        )
+        attn_output = scaled_dot_product_attention(q_heads, k_heads, v_heads,
+            attn_mask=sq_mask)
+        # attn_output = torch.nn.functional.scaled_dot_product_attention(
+        #     q_heads, k_heads, v_heads,
+        #     attn_mask=sq_mask
+        # )
         # Reshape back to (B, S, d_model)
         attn_output = attn_output.transpose(1, 2).reshape(B, S, D)
         output = attn_output @ self.W_o.T
@@ -569,3 +576,52 @@ class MultiheadAttention_MLA(nn.Module):
             # Return None for attention weights as MLA does not output them
             return output, None
         return output
+
+
+import torch.nn.functional as F
+
+
+def scaled_dot_product_attention(
+    query, key, value,
+    attn_mask=None, dropout_p=0.0,
+    is_causal=False, scale=None,
+    enable_gqa=False
+) -> torch.Tensor:
+    
+    L, S = query.size(-2), key.size(-2)
+    scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+
+    attn_bias = torch.zeros(L, S, dtype=query.dtype, device=query.device)
+
+    if is_causal:
+        # temp_mask = torch.ones(L, S, dtype=torch.bool, device=query.device).tril(diagonal=0)
+        # attn_bias = attn_bias.masked_fill(~temp_mask, float('-inf'))
+        temp_mask = torch.ones(L, S, dtype=torch.bool, device=query.device).tril(0)
+
+        attn_bias = (1.0 - temp_mask.float()) * float('-inf')
+        attn_bias = attn_bias.to(query.dtype)
+
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            attn_bias = attn_bias.masked_fill(~attn_mask, float('-inf'))
+        else:
+            attn_bias = attn_bias + attn_mask
+
+
+    if enable_gqa:
+        query_groups = query.size(-3)
+        key_groups = key.size(-3)
+        repeat_times = query_groups // key_groups
+        key = key.repeat_interleave(repeat_times, dim=-3)
+        value = value.repeat_interleave(repeat_times, dim=-3)
+
+
+    attn_weight = torch.matmul(query, key.transpose(-2, -1)) * scale_factor
+    attn_weight = attn_weight + attn_bias
+    attn_weight = torch.softmax(attn_weight, dim=-1)
+
+    attn_weight = F.dropout(attn_weight, p=dropout_p, training=True)
+
+    output = torch.matmul(attn_weight, value)
+
+    return output
